@@ -38,13 +38,12 @@ type Tracker interface {
 	TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error
 }
 
-type NewTrackerFunc func(client, server string, hooks Hooks) Tracker
-type NewTrackerFactoryFunc NewTrackerFunc
+type NewTrackerFactoryFunc func() Tracker
 
 type Hooks struct {
 	onHandshakRequest func(args *tracking.UpgradeArgs_)
-	onRequestHeader   func(header *tracking.RequestHeader)
-	onResponseHeader  func(header *tracking.ResponseHeader)
+	onHeaderRequest   func(header *tracking.RequestHeader)
+	onHeaderResponse  func(header *tracking.ResponseHeader)
 }
 
 type SimpleTracker struct {
@@ -55,8 +54,10 @@ type SimpleTracker struct {
 	hooks   Hooks
 }
 
-func NewSimpleTrackerFactory() NewTrackerFunc {
-	return NewSimpleTracker
+func NewSimpleTrackerFactory(client, server string, hooks Hooks) func() Tracker {
+	return func() Tracker {
+		return NewSimpleTracker(client, server, hooks)
+	}
 }
 
 func NewSimpleTracker(client, server string, hooks Hooks) Tracker {
@@ -64,7 +65,7 @@ func NewSimpleTracker(client, server string, hooks Hooks) Tracker {
 		mu:      &sync.RWMutex,
 		version: VersionDefault,
 		client:  client,
-		server:  string,
+		server:  server,
 		hooks:   Hooks,
 	}
 }
@@ -179,9 +180,6 @@ func (t *SimpleTracker) ResponseHeaderSupported() bool {
 	return t.version >= VersionRequestResponseHeader
 }
 
-func (t *SimpleTracker) OnHandshakRequest(args *tracking.UpgradeArgs_) {
-}
-
 func (t *SimpleTracker) RequestID(ctx context.Context) string {
 	if reqID, ok := ctx.Value(CtxKeyRequestID).(string); ok {
 		return reqID
@@ -197,7 +195,7 @@ func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) error {
 	if err := header.Read(iprot); err != nil {
 		return err
 	}
-	t.hooks.onRequestHeader(header)
+	t.hooks.onHeaderRequest(header)
 	return nil
 }
 
@@ -222,7 +220,7 @@ func (t *SimpleTracker) TryReadResponseHeader(iprot thrift.TProtocol) error {
 	if err := header.Read(iprot); err != nil {
 		return err
 	}
-	t.hooks.onResponseHeader(header)
+	t.hooks.onHeaderResponse(header)
 	return nil
 }
 
