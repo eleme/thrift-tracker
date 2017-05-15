@@ -198,7 +198,7 @@ func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string
 		reqID = uuid.New().String()
 	}
 	if v, ok := ctx.Value(CtxKeySequenceID).(string); ok {
-		if cur, err := strconv.Atoi(v); err != nil {
+		if cur, err := strconv.Atoi(v); err == nil {
 			seqID = fmt.Sprintf("%d.%d", cur, cur+1)
 		}
 	}
