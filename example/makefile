@@ -1,6 +1,8 @@
+run: build
+	./run-tracker
+
 build:
-	go build -o 'tracker-client' ./client
-	go build -o 'tracker-server' ./server
+	go build -o 'run-tracker' ./run
 
 clean:
-	rm -rf tracker-client tracker-server
+	rm -rf run-tracker

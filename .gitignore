@@ -1,5 +1,4 @@
-example/tracker-client
-example/tracker-server
+example/run-tracker
 
 # Binaries for programs and plugins
 *.exe
