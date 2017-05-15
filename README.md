@@ -1,4 +1,4 @@
-## thriftpy-tracker for golang
+## thriftpy-like tracker for golang
 
 ### Requirements
 
