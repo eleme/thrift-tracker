@@ -638,12 +638,11 @@ func (p *CalculatorUnknownException) Error() string {
 
 type CalculatorService interface {  //API
 
-  Ping() (r bool, err error)
+  Ping(ctx context.Context) (r bool, err error)
   // Parameters:
   //  - Num1
   //  - Num2
-  Add(num1 int32, num2 int32) (r int32, err error)
-  Ctx() context.Context
+  Add(ctx context.Context,num1 int32, num2 int32) (r int32, err error)
 }
 
 //API
@@ -734,9 +733,6 @@ if p.SeqId != seqId {
   err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "ping failed: out of sequence response")
   return
 }
-if err = p.Tracker.TryReadResponseHeader(iprot); err != nil {
-    return
-}
 if mTypeId == thrift.EXCEPTION {
   error0 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
   var error1 error
@@ -826,9 +822,6 @@ if method != "add" {
 }
 if p.SeqId != seqId {
   err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "add failed: out of sequence response")
-  return
-}
-if err = p.Tracker.TryReadResponseHeader(iprot); err != nil {
   return
 }
 if mTypeId == thrift.EXCEPTION {
@@ -923,7 +916,8 @@ type calculatorServiceProcessorPing struct {
 }
 
 func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-if err = p.tracker.TryReadRequestHeader(iprot); err != nil {
+ctx, err := p.tracker.TryReadRequestHeader(iprot)
+if err != nil {
   return
 }
 args := CalculatorServicePingArgs{}
@@ -931,7 +925,6 @@ if err = args.Read(iprot); err != nil {
   iprot.ReadMessageEnd()
   x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
   oprot.WriteMessageBegin("ping", thrift.EXCEPTION, seqId)
-  p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
   x.Write(oprot)
   oprot.WriteMessageEnd()
   oprot.Flush()
@@ -942,7 +935,7 @@ iprot.ReadMessageEnd()
 result := CalculatorServicePingResult{}
 var retval bool
 var err2 error
-if retval, err2 = p.handler.Ping(); err2 != nil {
+if retval, err2 = p.handler.Ping(ctx); err2 != nil {
 switch v := err2.(type) {
   case *CalculatorUserException:
 result.UserException = v
@@ -953,7 +946,6 @@ result.UnknownException = v
   default:
   x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ping: " + err2.Error())
   oprot.WriteMessageBegin("ping", thrift.EXCEPTION, seqId)
-  p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
   x.Write(oprot)
   oprot.WriteMessageEnd()
   oprot.Flush()
@@ -963,9 +955,6 @@ result.UnknownException = v
 result.Success = &retval
 }
 if err2 = oprot.WriteMessageBegin("ping", thrift.REPLY, seqId); err2 != nil {
-  err = err2
-}
-if err2 = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err == nil && err2 != nil {
   err = err2
 }
 if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -989,7 +978,8 @@ type calculatorServiceProcessorAdd struct {
 }
 
 func (p *calculatorServiceProcessorAdd) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-if err = p.tracker.TryReadRequestHeader(iprot); err != nil {
+ctx, err := p.tracker.TryReadRequestHeader(iprot)
+if err != nil {
   return
 }
 args := CalculatorServiceAddArgs{}
@@ -997,7 +987,6 @@ if err = args.Read(iprot); err != nil {
   iprot.ReadMessageEnd()
   x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
   oprot.WriteMessageBegin("add", thrift.EXCEPTION, seqId)
-  p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
   x.Write(oprot)
   oprot.WriteMessageEnd()
   oprot.Flush()
@@ -1008,7 +997,7 @@ iprot.ReadMessageEnd()
 result := CalculatorServiceAddResult{}
 var retval int32
 var err2 error
-if retval, err2 = p.handler.Add(args.Num1, args.Num2); err2 != nil {
+if retval, err2 = p.handler.Add(ctx, args.Num1, args.Num2); err2 != nil {
 switch v := err2.(type) {
   case *CalculatorUserException:
 result.UserException = v
@@ -1019,7 +1008,6 @@ result.UnknownException = v
   default:
   x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing add: " + err2.Error())
   oprot.WriteMessageBegin("add", thrift.EXCEPTION, seqId)
-  p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
   x.Write(oprot)
   oprot.WriteMessageEnd()
   oprot.Flush()
@@ -1029,9 +1017,6 @@ result.UnknownException = v
 result.Success = &retval
 }
 if err2 = oprot.WriteMessageBegin("add", thrift.REPLY, seqId); err2 != nil {
-  err = err2
-}
-if err2 = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err == nil && err2 != nil {
   err = err2
 }
 if err2 = result.Write(oprot); err == nil && err2 != nil {
