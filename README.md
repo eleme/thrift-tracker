@@ -1,4 +1,8 @@
-## thriftpy-like tracker for golang
+## [thriftpy](https://github.com/eleme/thriftpy/tree/develop/thriftpy/contrib/tracking)-like tracker for golang
+
+Only support request header currently, response header is not so useful as request header.
+
+Unlike example/, always client/processor factory to avoid state race.
 
 ### Requirements
 

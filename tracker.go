@@ -3,6 +3,7 @@ package tracker
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -34,14 +35,14 @@ type HandShaker interface {
 type Tracker interface {
 	HandShaker
 
-	RequestID(ctx context.Context) string
+	RequestSeqIDFromCtx(ctx context.Context) (string, string)
 	TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) // context will pass into service handler
 	TryWriteRequestHeader(ctx context.Context, oprot thrift.TProtocol) error
 	// TryReadResponseHeader(iprot thrift.TProtocol) error
 	// TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error
 }
 
-type NewTrackerFactoryFunc func() Tracker
+type NewTrackerFactoryFunc func(client, server string, hooks Hooks) func() Tracker
 
 type Hooks struct {
 	onHandshakRequest   func(args *tracking.UpgradeArgs_)
@@ -189,11 +190,22 @@ func (t *SimpleTracker) RequestHeaderSupported() bool {
 	return t.version >= VersionRequestHeader
 }
 
-func (t *SimpleTracker) RequestID(ctx context.Context) string {
-	if reqID, ok := ctx.Value(CtxKeyRequestID).(string); ok {
-		return reqID
+func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string) {
+	var reqID, seqID string
+	if v, ok := ctx.Value(CtxKeyRequestID).(string); ok {
+		reqID = v
+	} else {
+		reqID = uuid.New().String()
 	}
-	return uuid.New().String()
+	if v, ok := ctx.Value(CtxKeySequenceID).(string); ok {
+		if cur, err := strconv.Atoi(v); err != nil {
+			seqID = fmt.Sprintf("%d.%d", cur, cur+1)
+		}
+	}
+	if seqID == "" {
+		seqID = "1"
+	}
+	return reqID, seqID
 }
 
 func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) {
@@ -223,7 +235,6 @@ func (t *SimpleTracker) TryWriteRequestHeader(ctx context.Context, oprot thrift.
 			header.Meta[k] = v
 		}
 	}
-	header.RequestID = t.RequestID(ctx) // TODO
-	header.Seq = "1.2"                  // TODO
+	header.RequestID, header.Seq = t.RequestSeqIDFromCtx(ctx)
 	return header.Write(oprot)
 }
