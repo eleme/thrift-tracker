@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -192,19 +193,29 @@ func (t *SimpleTracker) RequestHeaderSupported() bool {
 
 func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string) {
 	var reqID, seqID string
+
 	if v, ok := ctx.Value(CtxKeyRequestID).(string); ok {
 		reqID = v
 	} else {
 		reqID = uuid.New().String()
 	}
+
 	if v, ok := ctx.Value(CtxKeySequenceID).(string); ok {
-		if cur, err := strconv.Atoi(v); err == nil {
-			seqID = fmt.Sprintf("%d.%d", cur, cur+1)
+		var curSeqID string
+		ids := strings.Split(v, ".") // "{precvSeqID}.{...}.{curSeqID}"
+		if n := len(ids); n > 1 {
+			curSeqID = ids[n-1]
+		} else {
+			curSeqID = ids[0]
+		}
+		if cur, err := strconv.Atoi(curSeqID); err == nil {
+			seqID = fmt.Sprintf("%v.%d", v, cur+1)
 		}
 	}
 	if seqID == "" {
 		seqID = "1"
 	}
+
 	return reqID, seqID
 }
 
