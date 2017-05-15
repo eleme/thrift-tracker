@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/damnever/tracker/tracking"
+	"github.com/damnever/thrift-tracker/tracking"
 )
 
 type ctxKey string

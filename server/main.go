@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/damnever/tracker"
-	"github.com/damnever/tracker/calculator"
+	tracker "github.com/damnever/thrift-tracker"
+	"github.com/damnever/thrift-tracker/calculator"
 )
 
 type handler struct {
