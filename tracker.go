@@ -7,50 +7,50 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/damnever/thrift-tracker/tracking"
+	"github.com/google/uuid"
 )
 
 type ctxKey string
 
 const (
-	CtxKeyRequestID              ctxKey = "__thrift_tracking_request_id"
-	CtxKeyRequestMeta            ctxKey = "__thrift_tracking_request_meta"
-	CtxKeyResponseMeta           ctxKey = "__thrift_tracking_response_meta"
+	CtxKeySequenceID  ctxKey = "__thrift_tracking_sequence_id"
+	CtxKeyRequestID   ctxKey = "__thrift_tracking_request_id"
+	CtxKeyRequestMeta ctxKey = "__thrift_tracking_request_meta"
+	// CtxKeyResponseMeta           ctxKey = "__thrift_tracking_response_meta"
 	TrackingAPIName              string = "ElemeThriftTrackingAPI"
 	VersionDefault               int32  = 0
 	VersionRequestHeader         int32  = 1
-	VersionRequestResponseHeader int32  = 2
-	VersionMax                   int32  = VersionRequestResponseHeader
+	VersionRequestResponseHeader int32  = 2 // reserved
+	VersionMax                   int32  = VersionRequestHeader
 )
 
 type HandShaker interface {
 	Negotiation(curSeqID int32, iprot, oprot thrift.TProtocol) error
 	TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (bool, thrift.TException)
 	RequestHeaderSupported() bool
-	ResponseHeaderSupported() bool
+	// ResponseHeaderSupported() bool
 }
 
 type Tracker interface {
 	HandShaker
 
 	RequestID(ctx context.Context) string
-	TryReadRequestHeader(iprot thrift.TProtocol) error
+	TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) // context will pass into service handler
 	TryWriteRequestHeader(ctx context.Context, oprot thrift.TProtocol) error
-	TryReadResponseHeader(iprot thrift.TProtocol) error
-	TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error
+	// TryReadResponseHeader(iprot thrift.TProtocol) error
+	// TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error
 }
 
 type NewTrackerFactoryFunc func() Tracker
 
 type Hooks struct {
-	onHandshakRequest func(args *tracking.UpgradeArgs_)
-	onHeaderRequest   func(header *tracking.RequestHeader)
-	onHeaderResponse  func(header *tracking.ResponseHeader)
+	onHandshakRequest   func(args *tracking.UpgradeArgs_)
+	onRecvHeaderRequest func(header *tracking.RequestHeader)
 }
 
 var DefaultHooks = Hooks{
-	onHandshakRequest: func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
-	onHeaderRequest:   func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
-	onHeaderResponse:  func(header *tracking.ResponseHeader) { fmt.Printf("%#+v\n", header) },
+	onHandshakRequest:   func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
+	onRecvHeaderRequest: func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
 }
 
 type SimpleTracker struct {
@@ -189,29 +189,27 @@ func (t *SimpleTracker) RequestHeaderSupported() bool {
 	return t.version >= VersionRequestHeader
 }
 
-func (t *SimpleTracker) ResponseHeaderSupported() bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.version >= VersionRequestResponseHeader
-}
-
 func (t *SimpleTracker) RequestID(ctx context.Context) string {
 	if reqID, ok := ctx.Value(CtxKeyRequestID).(string); ok {
 		return reqID
 	}
-	return "TODO"
+	return uuid.New().String()
 }
 
-func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) error {
+func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) {
 	if !t.RequestHeaderSupported() {
-		return nil
+		return context.TODO(), nil
 	}
 	header := tracking.NewRequestHeader()
 	if err := header.Read(iprot); err != nil {
-		return err
+		return context.TODO(), err
 	}
-	t.hooks.onHeaderRequest(header)
-	return nil
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, CtxKeyRequestID, header.GetRequestID())
+	ctx = context.WithValue(ctx, CtxKeySequenceID, header.GetSeq())
+	ctx = context.WithValue(ctx, CtxKeyRequestMeta, header.GetMeta())
+	t.hooks.onRecvHeaderRequest(header)
+	return ctx, nil
 }
 
 func (t *SimpleTracker) TryWriteRequestHeader(ctx context.Context, oprot thrift.TProtocol) error {
@@ -220,32 +218,12 @@ func (t *SimpleTracker) TryWriteRequestHeader(ctx context.Context, oprot thrift.
 	}
 	header := tracking.NewRequestHeader()
 	if meta, ok := ctx.Value(CtxKeyRequestMeta).(map[string]string); ok {
-		header.Meta = meta
+		header.Meta = make(map[string]string, len(meta))
+		for k, v := range meta {
+			header.Meta[k] = v
+		}
 	}
 	header.RequestID = t.RequestID(ctx) // TODO
 	header.Seq = "1.2"                  // TODO
-	return header.Write(oprot)
-}
-
-func (t *SimpleTracker) TryReadResponseHeader(iprot thrift.TProtocol) error {
-	if !t.ResponseHeaderSupported() {
-		return nil
-	}
-	header := tracking.NewResponseHeader()
-	if err := header.Read(iprot); err != nil {
-		return err
-	}
-	t.hooks.onHeaderResponse(header)
-	return nil
-}
-
-func (t *SimpleTracker) TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error {
-	if !t.ResponseHeaderSupported() {
-		return nil
-	}
-	header := tracking.NewResponseHeader()
-	if meta, ok := ctx.Value(CtxKeyResponseMeta).(map[string]string); ok {
-		header.Meta = meta
-	}
 	return header.Write(oprot)
 }
