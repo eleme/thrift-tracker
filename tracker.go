@@ -86,7 +86,7 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	}
 	args := tracking.NewUpgradeArgs_()
 	args.AppID = t.client
-	args.Version = t.version
+	args.Version = VersionRequestHeader
 	if err := args.Write(oprot); err != nil {
 		return err
 	}
@@ -119,6 +119,9 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return err
+		}
+		if err0.TypeId() == thrift.UNKNOWN_METHOD { // server does not support tracker, ignore
+			return nil
 		}
 		return err1
 	}
