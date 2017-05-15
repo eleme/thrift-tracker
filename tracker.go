@@ -86,7 +86,7 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	}
 	args := tracking.NewUpgradeArgs_()
 	args.AppID = t.client
-	args.Version = VersionRequestHeader
+	args.Version = VersionDefault // XXX: be compatible with thriftpy
 	if err := args.Write(oprot); err != nil {
 		return err
 	}
@@ -154,13 +154,7 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 
 	t.hooks.onHandshakRequest(args)
 	result := tracking.NewUpgradeReply()
-	version := args.GetVersion()
-	if version > VersionDefault {
-		t.trySetVersion(version, version)
-		result.Version = version
-	} else {
-		t.trySetVersion(version, VersionRequestHeader)
-	}
+	result.Version = t.trySetVersion(args.GetVersion(), VersionRequestHeader)
 	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.REPLY, seqID); err != nil {
 		return false, err
 	}
@@ -176,16 +170,20 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 	return true, nil
 }
 
-func (t *SimpleTracker) trySetVersion(version int32, defaultVersion int32) {
+func (t *SimpleTracker) trySetVersion(version int32, defaultVersion int32) int32 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if version == VersionDefault {
 		version = defaultVersion
 	}
-	if version < t.version || version > VersionMax {
-		return
+	if version < t.version || version > VersionRequestResponseHeader { // XXX: be compatible with thriftpy
+		return VersionDefault
+	}
+	if version == VersionRequestResponseHeader { // XXX: only support request header, be compatible with thriftpy
+		version = defaultVersion
 	}
 	t.version = version
+	return version
 }
 
 func (t *SimpleTracker) RequestHeaderSupported() bool {
