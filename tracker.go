@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -15,15 +16,15 @@ const (
 	CtxKeyRequestMeta            ctxKey = "__thrift_tracking_request_meta"
 	CtxKeyResponseMeta           ctxKey = "__thrift_tracking_response_meta"
 	TrackingAPIName              string = "ElemeThriftTrackingAPI"
-	VersionDefault               int    = 0
-	VersionRequestHeader         int    = 1
-	VersionRequestResponseHeader int    = 2
-	VersionMax                   int    = VersionRequestResponseHeader
+	VersionDefault               int32  = 0
+	VersionRequestHeader         int32  = 1
+	VersionRequestResponseHeader int32  = 2
+	VersionMax                   int32  = VersionRequestResponseHeader
 )
 
 type HandShaker interface {
 	Negotiation(curSeqID int32, iprot, oprot thrift.TProtocol) error
-	TryUpgrade(seqID, iprot, oprot thrift.TProtocol) (bool, thrift.TException)
+	TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (bool, thrift.TException)
 	RequestHeaderSupported() bool
 	ResponseHeaderSupported() bool
 }
@@ -46,9 +47,15 @@ type Hooks struct {
 	onHeaderResponse  func(header *tracking.ResponseHeader)
 }
 
+var DefaultHooks = Hooks{
+	onHandshakRequest: func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
+	onHeaderRequest:   func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
+	onHeaderResponse:  func(header *tracking.ResponseHeader) { fmt.Printf("%#+v\n", header) },
+}
+
 type SimpleTracker struct {
 	mu      *sync.RWMutex
-	version int
+	version int32
 	client  string
 	server  string
 	hooks   Hooks
@@ -62,11 +69,11 @@ func NewSimpleTrackerFactory(client, server string, hooks Hooks) func() Tracker 
 
 func NewSimpleTracker(client, server string, hooks Hooks) Tracker {
 	return &SimpleTracker{
-		mu:      &sync.RWMutex,
+		mu:      &sync.RWMutex{},
 		version: VersionDefault,
 		client:  client,
 		server:  server,
-		hooks:   Hooks,
+		hooks:   hooks,
 	}
 }
 
@@ -89,7 +96,10 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	}
 
 	// recv
-	method, mTypeID, seqID := iprot.ReadMessageBegin()
+	method, mTypeID, seqID, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return err
+	}
 	if method != TrackingAPIName {
 		return thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME,
 			"tracker negotiation failed: wrong method name")
@@ -101,16 +111,16 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	if mTypeID == thrift.EXCEPTION {
 		err0 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION,
 			"Unknown Exception")
-		var err1 error
-		if err1, err := err0.Read(iprot); err != nil {
+		var err1, err error
+		if err1, err = err0.Read(iprot); err != nil {
 			return err
 		}
-		if err := iprot.ReadMessageEnd(); err != nil {
+		if err = iprot.ReadMessageEnd(); err != nil {
 			return err
 		}
 		return err1
 	}
-	if mTypeId != thrift.REPLY {
+	if mTypeID != thrift.REPLY {
 		return thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION,
 			"tracker negotiation failed: invalid message type")
 	}
@@ -125,7 +135,7 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	return nil
 }
 
-func (t *SimpleTracker) TryUpgrade(seqID, iprot, oprot thrift.TProtocol) (bool, thrift.TException) {
+func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (bool, thrift.TException) {
 	args := tracking.NewUpgradeArgs_()
 	if err := args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
@@ -138,10 +148,15 @@ func (t *SimpleTracker) TryUpgrade(seqID, iprot, oprot thrift.TProtocol) (bool, 
 	iprot.ReadMessageEnd()
 
 	t.hooks.onHandshakRequest(args)
-	t.trySetVersion(args.GetVersion(), VersionRequestHeader)
 	result := tracking.NewUpgradeReply()
-	result.Version = VersionRequestResponseHeader
-	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.EXCEPTION, seqID); err != nil {
+	version := args.GetVersion()
+	if version > VersionDefault {
+		t.trySetVersion(version, version)
+		result.Version = version
+	} else {
+		t.trySetVersion(version, VersionRequestHeader)
+	}
+	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.REPLY, seqID); err != nil {
 		return false, err
 	}
 	if err := result.Write(oprot); err != nil {
@@ -156,7 +171,7 @@ func (t *SimpleTracker) TryUpgrade(seqID, iprot, oprot thrift.TProtocol) (bool, 
 	return true, nil
 }
 
-func (t *SimpleTracker) trySetVersion(version int, defaultVersion int) {
+func (t *SimpleTracker) trySetVersion(version int32, defaultVersion int32) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if version == VersionDefault {
@@ -208,7 +223,7 @@ func (t *SimpleTracker) TryWriteRequestHeader(ctx context.Context, oprot thrift.
 		header.Meta = meta
 	}
 	header.RequestID = t.RequestID(ctx) // TODO
-	header.Seq = ""                     // TODO
+	header.Seq = "1.2"                  // TODO
 	return header.Write(oprot)
 }
 

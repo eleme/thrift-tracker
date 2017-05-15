@@ -880,6 +880,7 @@ func (p *CalculatorServiceClient) recvAdd() (value int32, err error) {
 type CalculatorServiceProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      CalculatorService
+	tracker      tracker.Tracker
 }
 
 func (p *CalculatorServiceProcessor) AddToProcessorMap(key string, processor thrift.TProcessorFunction) {
@@ -898,6 +899,7 @@ func (p *CalculatorServiceProcessor) ProcessorMap() map[string]thrift.TProcessor
 func NewCalculatorServiceProcessor(tracker tracker.Tracker, handler CalculatorService) *CalculatorServiceProcessor {
 
 	self4 := &CalculatorServiceProcessor{
+		tracker:      tracker,
 		handler:      handler,
 		processorMap: make(map[string]thrift.TProcessorFunction),
 	}
@@ -942,6 +944,7 @@ func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrif
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
 		oprot.WriteMessageBegin("ping", thrift.EXCEPTION, seqId)
+		p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush()
@@ -949,9 +952,6 @@ func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrif
 	}
 
 	iprot.ReadMessageEnd()
-	if err = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err != nil {
-		return
-	}
 	result := CalculatorServicePingResult{}
 	var retval bool
 	var err2 error
@@ -966,6 +966,7 @@ func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrif
 		default:
 			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ping: "+err2.Error())
 			oprot.WriteMessageBegin("ping", thrift.EXCEPTION, seqId)
+			p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot)
 			x.Write(oprot)
 			oprot.WriteMessageEnd()
 			oprot.Flush()
@@ -975,6 +976,9 @@ func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrif
 		result.Success = &retval
 	}
 	if err2 = oprot.WriteMessageBegin("ping", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err == nil && err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -1013,9 +1017,7 @@ func (p *calculatorServiceProcessorAdd) Process(seqId int32, iprot, oprot thrift
 	}
 
 	iprot.ReadMessageEnd()
-	if err = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err != nil {
-		return
-	}
+
 	result := CalculatorServiceAddResult{}
 	var retval int32
 	var err2 error
@@ -1039,6 +1041,9 @@ func (p *calculatorServiceProcessorAdd) Process(seqId int32, iprot, oprot thrift
 		result.Success = &retval
 	}
 	if err2 = oprot.WriteMessageBegin("add", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = p.tracker.TryWriteResponseHeader(p.handler.Ctx(), oprot); err == nil && err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
