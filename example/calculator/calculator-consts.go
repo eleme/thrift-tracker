@@ -17,7 +17,7 @@ var _ = thrift.ZERO
 var _ = fmt.Printf
 var _ = reflect.DeepEqual
 var _ = context.TODO()
-var _ = tracker.VersionDefault
+var _ = tracker.TrackingAPIName
 var _ = bytes.Equal
 
 
