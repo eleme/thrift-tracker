@@ -18,6 +18,8 @@ import (
 var _ = thrift.ZERO
 var _ = fmt.Printf
 var _ = reflect.DeepEqual
+var _ = context.TODO()
+var _ = tracker.VersionDefault
 var _ = bytes.Equal
 
 //Exceptions
@@ -636,11 +638,11 @@ func (p *CalculatorUnknownException) Error() string {
 
 type CalculatorService interface {  //API
 
-  Ping(ctx context.Context) (r bool, err error)
+  Ping() (r bool, err error)
   // Parameters:
   //  - Num1
   //  - Num2
-  Add(ctx context.Context,num1 int32, num2 int32) (r int32, err error)
+  Add(num1 int32, num2 int32) (r int32, err error)
   Ctx() context.Context
 }
 
@@ -654,34 +656,34 @@ type CalculatorServiceClient struct {
   SeqId int32
 }
 
-func NewCalculatorServiceClientFactory(tracker tracker.Tracker, t thrift.TTransport, f thrift.TProtocolFactory) (*CalculatorServiceClient, error) {
+func NewCalculatorServiceClientFactory(ttracker tracker.Tracker, t thrift.TTransport, f thrift.TProtocolFactory) (*CalculatorServiceClient, error) {
   iprot := f.GetProtocol(t)
   oprot := f.GetProtocol(t)
-  if err := tracker.Negotiation(1, iprot, oprot); err != nil {
+  if err := ttracker.Negotiation(1, iprot, oprot); err != nil {
       return nil, err
   }
   return &CalculatorServiceClient{
-    Tracker: tracker,
+    Tracker: ttracker,
     Transport: t,
     ProtocolFactory: f,
     InputProtocol: iprot,
     OutputProtocol: oprot,
     SeqId: 1,
-  }
+  }, nil
 }
 
-func NewCalculatorServiceClientProtocol(t thrift.TTransport, iprot thrift.TProtocol, oprot thrift.TProtocol) (*CalculatorServiceClient, error) {
-  if err := tracker.Negotiation(1, iprot, oprot); err != nil {
+func NewCalculatorServiceClientProtocol(ttracker tracker.Tracker, t thrift.TTransport, iprot thrift.TProtocol, oprot thrift.TProtocol) (*CalculatorServiceClient, error) {
+  if err := ttracker.Negotiation(1, iprot, oprot); err != nil {
       return nil, err
   }
   return &CalculatorServiceClient{
-    Tracker: tracker,
+    Tracker: ttracker,
     Transport: t,
     ProtocolFactory: nil,
     InputProtocol: iprot,
     OutputProtocol: oprot,
     SeqId: 1,
-  }
+  }, nil
 }
 
 func (p *CalculatorServiceClient) Ping(ctx context.Context) (r bool, err error) {

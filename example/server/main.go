@@ -5,7 +5,7 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	tracker "github.com/damnever/thrift-tracker"
-	"github.com/damnever/thrift-tracker/calculator"
+	"github.com/damnever/thrift-tracker/example/calculator"
 )
 
 type handler struct {
