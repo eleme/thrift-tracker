@@ -3,4 +3,4 @@ build:
 	go build -o 'tracker-server' ./server
 
 clean:
-	rm -rf client server
+	rm -rf tracker-client tracker-server
