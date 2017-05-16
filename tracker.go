@@ -46,13 +46,13 @@ type Tracker interface {
 type NewTrackerFactoryFunc func(client, server string, hooks Hooks) func() Tracker
 
 type Hooks struct {
-	onHandshakRequest   func(args *tracking.UpgradeArgs_)
-	onRecvHeaderRequest func(header *tracking.RequestHeader)
+	OnHandshakRequest   func(args *tracking.UpgradeArgs_)
+	OnRecvHeaderRequest func(header *tracking.RequestHeader)
 }
 
 var DefaultHooks = Hooks{
-	onHandshakRequest:   func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
-	onRecvHeaderRequest: func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
+	OnHandshakRequest:   func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
+	OnRecvHeaderRequest: func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
 }
 
 type SimpleTracker struct {
@@ -152,7 +152,7 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 	}
 	iprot.ReadMessageEnd()
 
-	t.hooks.onHandshakRequest(args)
+	t.hooks.OnHandshakRequest(args)
 	result := tracking.NewUpgradeReply()
 	result.Version = t.trySetVersion(args.GetVersion(), VersionRequestHeader)
 	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.REPLY, seqID); err != nil {
@@ -232,7 +232,7 @@ func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Co
 	ctx = context.WithValue(ctx, CtxKeyRequestID, header.GetRequestID())
 	ctx = context.WithValue(ctx, CtxKeySequenceID, header.GetSeq())
 	ctx = context.WithValue(ctx, CtxKeyRequestMeta, header.GetMeta())
-	t.hooks.onRecvHeaderRequest(header)
+	t.hooks.OnRecvHeaderRequest(header)
 	return ctx, nil
 }
 
