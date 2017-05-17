@@ -6,10 +6,10 @@ Unlike example/, always use client/processor factory to avoid state race.
 
 ### Requirements
 
-A modified version of thrift compiler: https://github.com/damnever/thrift
+A modified version of thrift compiler: https://github.com/eleme/thrift
 
 ```Bash
-$ git clone git@github.com:damnever/thrift.git
+$ git clone git@github.com:eleme/thrift.git
 $ git checkout tracker
 $ ./bootstrap.sh
 $ ./configure --prefix=/usr/local/ --without-haskell --without-java --without-php --without-nodejs --without-python --without-cpp --without-lua --without-perl --without-ruby --without-erlang --without-rust
