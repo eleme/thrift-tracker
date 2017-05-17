@@ -106,14 +106,14 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	if mTypeID == thrift.EXCEPTION {
 		err0 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION,
 			"Unknown Exception")
-		var err1, err error
+		var err1 thrift.TApplicationException
 		if err1, err = err0.Read(iprot); err != nil {
 			return err
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return err
 		}
-		if err0.TypeId() == thrift.UNKNOWN_METHOD { // server does not support tracker, ignore
+		if err1.TypeId() == thrift.UNKNOWN_METHOD { // server does not support tracker, ignore
 			return nil
 		}
 		return err1
