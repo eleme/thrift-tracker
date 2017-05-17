@@ -185,12 +185,12 @@ func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string
 	}
 
 	if v, ok := ctx.Value(CtxKeySequenceID).(string); ok {
-		seqID = fmt.Sprintf("%v.1", v)
+		seqID = v
 	} else {
 		seqID = "1"
 	}
 
-	return reqID, seqID
+	return reqID, fmt.Sprintf("%v.1", seqID)
 }
 
 func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) {
