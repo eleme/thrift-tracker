@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/damnever/thrift-tracker/tracking"
+	"github.com/eleme/thrift-tracker/tracking"
 	"github.com/google/uuid"
 )
 

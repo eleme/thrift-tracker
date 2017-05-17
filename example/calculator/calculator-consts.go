@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/apache/thrift/lib/go/thrift"
-	tracker "github.com/damnever/thrift-tracker"
+	tracker "github.com/eleme/thrift-tracker"
 )
 
 // (needed to ensure safety because of naive import list construction.)
