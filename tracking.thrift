@@ -15,10 +15,8 @@ struct ResponseHeader {
  * This is the struct that a successful upgrade will reply with.
  */
 struct UpgradeReply {
-    1:i32 version
 }
 
 struct UpgradeArgs {
     1: string app_id
-    2: i32 version
 }

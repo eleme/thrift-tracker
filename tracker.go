@@ -3,8 +3,6 @@ package tracker
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -19,11 +17,7 @@ const (
 	CtxKeyRequestID   ctxKey = "__thrift_tracking_request_id"
 	CtxKeyRequestMeta ctxKey = "__thrift_tracking_request_meta"
 	// CtxKeyResponseMeta           ctxKey = "__thrift_tracking_response_meta"
-	TrackingAPIName              string = "ElemeThriftTrackingAPI"
-	VersionDefault               int32  = 0
-	VersionRequestHeader         int32  = 1
-	VersionRequestResponseHeader int32  = 2 // reserved
-	VersionMax                   int32  = VersionRequestHeader
+	TrackingAPIName string = "__thriftpy_tracing_method_name__v2"
 )
 
 type HandShaker interface {
@@ -56,11 +50,11 @@ var DefaultHooks = Hooks{
 }
 
 type SimpleTracker struct {
-	mu      *sync.RWMutex
-	version int32
-	client  string
-	server  string
-	hooks   Hooks
+	mu       *sync.RWMutex
+	upgraded bool
+	client   string
+	server   string
+	hooks    Hooks
 }
 
 func NewSimpleTrackerFactory(client, server string, hooks Hooks) func() Tracker {
@@ -71,11 +65,11 @@ func NewSimpleTrackerFactory(client, server string, hooks Hooks) func() Tracker 
 
 func NewSimpleTracker(client, server string, hooks Hooks) Tracker {
 	return &SimpleTracker{
-		mu:      &sync.RWMutex{},
-		version: VersionDefault,
-		client:  client,
-		server:  server,
-		hooks:   hooks,
+		mu:       &sync.RWMutex{},
+		upgraded: false,
+		client:   client,
+		server:   server,
+		hooks:    hooks,
 	}
 }
 
@@ -86,7 +80,6 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	}
 	args := tracking.NewUpgradeArgs_()
 	args.AppID = t.client
-	args.Version = VersionDefault // XXX: be compatible with thriftpy
 	if err := args.Write(oprot); err != nil {
 		return err
 	}
@@ -136,7 +129,7 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 	if err := iprot.ReadMessageEnd(); err != nil {
 		return err
 	}
-	t.trySetVersion(reply.GetVersion(), VersionRequestHeader)
+	t.upgradeProtocol()
 	return nil
 }
 
@@ -154,7 +147,6 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 
 	t.hooks.OnHandshakRequest(args)
 	result := tracking.NewUpgradeReply()
-	result.Version = t.trySetVersion(args.GetVersion(), VersionRequestHeader)
 	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.REPLY, seqID); err != nil {
 		return false, err
 	}
@@ -167,29 +159,20 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 	if err := oprot.Flush(); err != nil {
 		return false, err
 	}
+	t.upgradeProtocol()
 	return true, nil
 }
 
-func (t *SimpleTracker) trySetVersion(version int32, defaultVersion int32) int32 {
+func (t *SimpleTracker) upgradeProtocol() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if version == VersionDefault {
-		version = defaultVersion
-	}
-	if version < t.version || version > VersionRequestResponseHeader { // XXX: be compatible with thriftpy
-		return VersionDefault
-	}
-	if version == VersionRequestResponseHeader { // XXX: only support request header, be compatible with thriftpy
-		version = defaultVersion
-	}
-	t.version = version
-	return version
+	t.upgraded = true
 }
 
 func (t *SimpleTracker) RequestHeaderSupported() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.version >= VersionRequestHeader
+	return t.upgraded
 }
 
 func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string) {
@@ -202,18 +185,8 @@ func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string
 	}
 
 	if v, ok := ctx.Value(CtxKeySequenceID).(string); ok {
-		var curSeqID string
-		ids := strings.Split(v, ".") // "{precvSeqID}.{...}.{curSeqID}"
-		if n := len(ids); n > 1 {
-			curSeqID = ids[n-1]
-		} else {
-			curSeqID = ids[0]
-		}
-		if cur, err := strconv.Atoi(curSeqID); err == nil {
-			seqID = fmt.Sprintf("%v.%d", v, cur+1)
-		}
-	}
-	if seqID == "" {
+		seqID = fmt.Sprintf("%v.1", v)
+	} else {
 		seqID = "1"
 	}
 

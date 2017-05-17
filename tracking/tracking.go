@@ -303,21 +303,13 @@ func (p *ResponseHeader) String() string {
 }
 
 // This is the struct that a successful upgrade will reply with.
-// 
-// Attributes:
-//  - Version
 type UpgradeReply struct {
-  Version int32 `thrift:"version,1" db:"version" json:"version"`
 }
 
 func NewUpgradeReply() *UpgradeReply {
   return &UpgradeReply{}
 }
 
-
-func (p *UpgradeReply) GetVersion() int32 {
-  return p.Version
-}
 func (p *UpgradeReply) Read(iprot thrift.TProtocol) error {
   if _, err := iprot.ReadStructBegin(); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -330,15 +322,8 @@ func (p *UpgradeReply) Read(iprot thrift.TProtocol) error {
       return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
     }
     if fieldTypeId == thrift.STOP { break; }
-    switch fieldId {
-    case 1:
-      if err := p.ReadField1(iprot); err != nil {
-        return err
-      }
-    default:
-      if err := iprot.Skip(fieldTypeId); err != nil {
-        return err
-      }
+    if err := iprot.Skip(fieldTypeId); err != nil {
+      return err
     }
     if err := iprot.ReadFieldEnd(); err != nil {
       return err
@@ -350,36 +335,16 @@ func (p *UpgradeReply) Read(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *UpgradeReply)  ReadField1(iprot thrift.TProtocol) error {
-  if v, err := iprot.ReadI32(); err != nil {
-  return thrift.PrependError("error reading field 1: ", err)
-} else {
-  p.Version = v
-}
-  return nil
-}
-
 func (p *UpgradeReply) Write(oprot thrift.TProtocol) error {
   if err := oprot.WriteStructBegin("UpgradeReply"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
   if p != nil {
-    if err := p.writeField1(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
   if err := oprot.WriteStructEnd(); err != nil {
     return thrift.PrependError("write struct stop error: ", err) }
   return nil
-}
-
-func (p *UpgradeReply) writeField1(oprot thrift.TProtocol) (err error) {
-  if err := oprot.WriteFieldBegin("version", thrift.I32, 1); err != nil {
-    return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:version: ", p), err) }
-  if err := oprot.WriteI32(int32(p.Version)); err != nil {
-  return thrift.PrependError(fmt.Sprintf("%T.version (1) field write error: ", p), err) }
-  if err := oprot.WriteFieldEnd(); err != nil {
-    return thrift.PrependError(fmt.Sprintf("%T write field end error 1:version: ", p), err) }
-  return err
 }
 
 func (p *UpgradeReply) String() string {
@@ -391,10 +356,8 @@ func (p *UpgradeReply) String() string {
 
 // Attributes:
 //  - AppID
-//  - Version
 type UpgradeArgs_ struct {
   AppID string `thrift:"app_id,1" db:"app_id" json:"app_id"`
-  Version int32 `thrift:"version,2" db:"version" json:"version"`
 }
 
 func NewUpgradeArgs_() *UpgradeArgs_ {
@@ -404,10 +367,6 @@ func NewUpgradeArgs_() *UpgradeArgs_ {
 
 func (p *UpgradeArgs_) GetAppID() string {
   return p.AppID
-}
-
-func (p *UpgradeArgs_) GetVersion() int32 {
-  return p.Version
 }
 func (p *UpgradeArgs_) Read(iprot thrift.TProtocol) error {
   if _, err := iprot.ReadStructBegin(); err != nil {
@@ -424,10 +383,6 @@ func (p *UpgradeArgs_) Read(iprot thrift.TProtocol) error {
     switch fieldId {
     case 1:
       if err := p.ReadField1(iprot); err != nil {
-        return err
-      }
-    case 2:
-      if err := p.ReadField2(iprot); err != nil {
         return err
       }
     default:
@@ -454,21 +409,11 @@ func (p *UpgradeArgs_)  ReadField1(iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *UpgradeArgs_)  ReadField2(iprot thrift.TProtocol) error {
-  if v, err := iprot.ReadI32(); err != nil {
-  return thrift.PrependError("error reading field 2: ", err)
-} else {
-  p.Version = v
-}
-  return nil
-}
-
 func (p *UpgradeArgs_) Write(oprot thrift.TProtocol) error {
   if err := oprot.WriteStructBegin("UpgradeArgs"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
   if p != nil {
     if err := p.writeField1(oprot); err != nil { return err }
-    if err := p.writeField2(oprot); err != nil { return err }
   }
   if err := oprot.WriteFieldStop(); err != nil {
     return thrift.PrependError("write field stop error: ", err) }
@@ -484,16 +429,6 @@ func (p *UpgradeArgs_) writeField1(oprot thrift.TProtocol) (err error) {
   return thrift.PrependError(fmt.Sprintf("%T.app_id (1) field write error: ", p), err) }
   if err := oprot.WriteFieldEnd(); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write field end error 1:app_id: ", p), err) }
-  return err
-}
-
-func (p *UpgradeArgs_) writeField2(oprot thrift.TProtocol) (err error) {
-  if err := oprot.WriteFieldBegin("version", thrift.I32, 2); err != nil {
-    return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:version: ", p), err) }
-  if err := oprot.WriteI32(int32(p.Version)); err != nil {
-  return thrift.PrependError(fmt.Sprintf("%T.version (2) field write error: ", p), err) }
-  if err := oprot.WriteFieldEnd(); err != nil {
-    return thrift.PrependError(fmt.Sprintf("%T write field end error 2:version: ", p), err) }
   return err
 }
 
