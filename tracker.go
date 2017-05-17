@@ -37,39 +37,25 @@ type Tracker interface {
 	// TryWriteResponseHeader(ctx context.Context, oprot thrift.TProtocol) error
 }
 
-type NewTrackerFactoryFunc func(client, server string, hooks Hooks) func() Tracker
-
-type Hooks struct {
-	OnHandshakRequest   func(args *tracking.UpgradeArgs_)
-	OnRecvHeaderRequest func(header *tracking.RequestHeader)
-}
-
-var DefaultHooks = Hooks{
-	OnHandshakRequest:   func(args *tracking.UpgradeArgs_) { fmt.Printf("%#+v\n", args) },
-	OnRecvHeaderRequest: func(header *tracking.RequestHeader) { fmt.Printf("%#+v\n", header) },
-}
+type NewTrackerFactoryFunc func(name string) func() Tracker
 
 type SimpleTracker struct {
 	mu       *sync.RWMutex
 	upgraded bool
-	client   string
-	server   string
-	hooks    Hooks
+	name     string
 }
 
-func NewSimpleTrackerFactory(client, server string, hooks Hooks) func() Tracker {
+func NewSimpleTrackerFactory(name string) func() Tracker {
 	return func() Tracker {
-		return NewSimpleTracker(client, server, hooks)
+		return NewSimpleTracker(name)
 	}
 }
 
-func NewSimpleTracker(client, server string, hooks Hooks) Tracker {
+func NewSimpleTracker(name string) Tracker {
 	return &SimpleTracker{
 		mu:       &sync.RWMutex{},
 		upgraded: false,
-		client:   client,
-		server:   server,
-		hooks:    hooks,
+		name:     name,
 	}
 }
 
@@ -79,7 +65,7 @@ func (t *SimpleTracker) Negotiation(curSeqID int32, iprot, oprot thrift.TProtoco
 		return err
 	}
 	args := tracking.NewUpgradeArgs_()
-	args.AppID = t.client
+	args.AppID = t.name
 	if err := args.Write(oprot); err != nil {
 		return err
 	}
@@ -145,7 +131,6 @@ func (t *SimpleTracker) TryUpgrade(seqID int32, iprot, oprot thrift.TProtocol) (
 	}
 	iprot.ReadMessageEnd()
 
-	t.hooks.OnHandshakRequest(args)
 	result := tracking.NewUpgradeReply()
 	if err := oprot.WriteMessageBegin(TrackingAPIName, thrift.REPLY, seqID); err != nil {
 		return false, err
@@ -205,7 +190,6 @@ func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Co
 	ctx = context.WithValue(ctx, CtxKeyRequestID, header.GetRequestID())
 	ctx = context.WithValue(ctx, CtxKeySequenceID, header.GetSeq())
 	ctx = context.WithValue(ctx, CtxKeyRequestMeta, header.GetMeta())
-	t.hooks.OnRecvHeaderRequest(header)
 	return ctx, nil
 }
 

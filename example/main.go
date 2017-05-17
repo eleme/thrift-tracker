@@ -69,7 +69,7 @@ func (h *handlerC) Add(ctx context.Context, num1, num2 int32) (int32, error) {
 	return num1 + num2, nil
 }
 
-func NewClient(addr, cliName, srvName string) (*calculator.CalculatorServiceClient, error) {
+func NewClient(addr, name string) (*calculator.CalculatorServiceClient, error) {
 	transportFactory := thrift.NewTBufferedTransportFactory(4096)
 	socket, err := thrift.NewTSocket(addr)
 	if err != nil {
@@ -81,7 +81,7 @@ func NewClient(addr, cliName, srvName string) (*calculator.CalculatorServiceClie
 	transport := transportFactory.GetTransport(socket)
 	protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
 
-	ttracker := tracker.NewSimpleTracker(cliName, srvName, tracker.DefaultHooks)
+	ttracker := tracker.NewSimpleTracker(name)
 	client, err := calculator.NewCalculatorServiceClientFactory(ttracker, transport, protocolFactory)
 	if err != nil {
 		return nil, err
@@ -89,8 +89,8 @@ func NewClient(addr, cliName, srvName string) (*calculator.CalculatorServiceClie
 	return client, nil
 }
 
-func RunServer(addr, cliName, srvName string, handler calculator.CalculatorService) {
-	ttracker := tracker.NewSimpleTracker(cliName, srvName, tracker.DefaultHooks)
+func RunServer(addr, name string, handler calculator.CalculatorService) {
+	ttracker := tracker.NewSimpleTracker(name)
 	processor := calculator.NewCalculatorServiceProcessor(ttracker, handler)
 
 	transport, err := thrift.NewTServerSocket(addr)
@@ -108,18 +108,18 @@ func RunServer(addr, cliName, srvName string, handler calculator.CalculatorServi
 
 func main() {
 	go func() {
-		RunServer(ServerCAddr, ServerC, ServerC, &handlerC{})
+		RunServer(ServerCAddr, ServerC, &handlerC{})
 	}()
 	time.Sleep(10 * time.Millisecond) // wait server C started
 
-	clientB, err := NewClient(ServerCAddr, ServerB, ServerC)
+	clientB, err := NewClient(ServerCAddr, ServerB)
 	must(err)
 	go func() {
-		RunServer(ServerBAddr, ServerB, ServerC, &handlerB{client: clientB})
+		RunServer(ServerBAddr, ServerB, &handlerB{client: clientB})
 	}()
 	time.Sleep(10 * time.Millisecond) // wait server B started
 
-	clientA, err := NewClient(ServerBAddr, ServerA, ServerB)
+	clientA, err := NewClient(ServerBAddr, ServerA)
 	must(err)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, tracker.CtxKeyRequestMeta, map[string]string{"clientA": "ping"})
