@@ -19,7 +19,7 @@ var _ = thrift.ZERO
 var _ = fmt.Printf
 var _ = reflect.DeepEqual
 var _ = context.TODO()
-var _ = tracker.VersionDefault
+var _ = tracker.TrackingAPIName
 var _ = bytes.Equal
 
 //Exceptions
@@ -696,11 +696,11 @@ func (p *CalculatorServiceClient) sendPing(ctx context.Context)(err error) {
     oprot = p.ProtocolFactory.GetProtocol(p.Transport)
     p.OutputProtocol = oprot
   }
+  if err = p.Tracker.TryWriteRequestHeader(ctx, oprot); err != nil {
+      return
+  }
   p.SeqId++
   if err = oprot.WriteMessageBegin("ping", thrift.CALL, p.SeqId); err != nil {
-    return
-}
-if err = p.Tracker.TryWriteRequestHeader(ctx, oprot); err != nil {
     return
 }
 args := CalculatorServicePingArgs{
@@ -785,11 +785,11 @@ if oprot == nil {
   oprot = p.ProtocolFactory.GetProtocol(p.Transport)
   p.OutputProtocol = oprot
 }
+if err = p.Tracker.TryWriteRequestHeader(ctx, oprot); err != nil {
+    return
+}
 p.SeqId++
 if err = oprot.WriteMessageBegin("add", thrift.CALL, p.SeqId); err != nil {
-  return
-}
-if err = p.Tracker.TryWriteRequestHeader(ctx, oprot); err != nil {
   return
 }
 args := CalculatorServiceAddArgs{
@@ -863,40 +863,51 @@ return
 }
 
 
+type CtxTProcessorFunction interface {
+  thrift.TProcessorFunction
+  SetCtx(ctx context.Context)
+  Ctx() context.Context
+}
+
 type CalculatorServiceProcessor struct {
   tracker tracker.Tracker
-  processorMap map[string]thrift.TProcessorFunction
+  processorMap map[string]CtxTProcessorFunction
   handler CalculatorService
 }
 
-func (p *CalculatorServiceProcessor) AddToProcessorMap(key string, processor thrift.TProcessorFunction) {
+func (p *CalculatorServiceProcessor) AddToProcessorMap(key string, processor CtxTProcessorFunction) {
   p.processorMap[key] = processor
 }
 
-func (p *CalculatorServiceProcessor) GetProcessorFunction(key string) (processor thrift.TProcessorFunction, ok bool) {
+func (p *CalculatorServiceProcessor) GetProcessorFunction(key string) (processor CtxTProcessorFunction, ok bool) {
   processor, ok = p.processorMap[key]
   return processor, ok
 }
 
-func (p *CalculatorServiceProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
+func (p *CalculatorServiceProcessor) ProcessorMap() map[string]CtxTProcessorFunction {
   return p.processorMap
 }
 
 func NewCalculatorServiceProcessor(tracker tracker.Tracker, handler CalculatorService) *CalculatorServiceProcessor {
 
-  self4 := &CalculatorServiceProcessor{tracker:tracker, handler:handler, processorMap:make(map[string]thrift.TProcessorFunction)}
+  self4 := &CalculatorServiceProcessor{tracker:tracker, handler:handler, processorMap:make(map[string]CtxTProcessorFunction)}
   self4.processorMap["ping"] = &calculatorServiceProcessorPing{handler:handler, tracker:tracker}
   self4.processorMap["add"] = &calculatorServiceProcessorAdd{handler:handler, tracker:tracker}
 return self4
 }
 
 func (p *CalculatorServiceProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+ctx, err := p.tracker.TryReadRequestHeader(iprot)
+if err != nil {
+  return
+}
   name, _, seqId, err := iprot.ReadMessageBegin()
   if err != nil { return false, err }
   if name == tracker.TrackingAPIName {
     return p.tracker.TryUpgrade(seqId, iprot, oprot)
   }
   if processor, ok := p.GetProcessorFunction(name); ok {
+    processor.SetCtx(ctx)
     return processor.Process(seqId, iprot, oprot)
   }
   iprot.Skip(thrift.STRUCT)
@@ -911,15 +922,14 @@ func (p *CalculatorServiceProcessor) Process(iprot, oprot thrift.TProtocol) (suc
 }
 
 type calculatorServiceProcessorPing struct {
+  ctx context.Context
   tracker tracker.Tracker
   handler CalculatorService
 }
 
+func (p *calculatorServiceProcessorPing) SetCtx(ctx context.Context) { p.ctx = ctx }
+func (p *calculatorServiceProcessorPing) Ctx() context.Context { return p.ctx }
 func (p *calculatorServiceProcessorPing) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-ctx, err := p.tracker.TryReadRequestHeader(iprot)
-if err != nil {
-  return
-}
 args := CalculatorServicePingArgs{}
 if err = args.Read(iprot); err != nil {
   iprot.ReadMessageEnd()
@@ -935,7 +945,7 @@ iprot.ReadMessageEnd()
 result := CalculatorServicePingResult{}
 var retval bool
 var err2 error
-if retval, err2 = p.handler.Ping(ctx); err2 != nil {
+if retval, err2 = p.handler.Ping(p.Ctx()); err2 != nil {
 switch v := err2.(type) {
   case *CalculatorUserException:
 result.UserException = v
@@ -973,15 +983,14 @@ return true, err
 }
 
 type calculatorServiceProcessorAdd struct {
+  ctx context.Context
   tracker tracker.Tracker
   handler CalculatorService
 }
 
+func (p *calculatorServiceProcessorAdd) SetCtx(ctx context.Context) { p.ctx = ctx }
+func (p *calculatorServiceProcessorAdd) Ctx() context.Context { return p.ctx }
 func (p *calculatorServiceProcessorAdd) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-ctx, err := p.tracker.TryReadRequestHeader(iprot)
-if err != nil {
-  return
-}
 args := CalculatorServiceAddArgs{}
 if err = args.Read(iprot); err != nil {
   iprot.ReadMessageEnd()
@@ -997,7 +1006,7 @@ iprot.ReadMessageEnd()
 result := CalculatorServiceAddResult{}
 var retval int32
 var err2 error
-if retval, err2 = p.handler.Add(ctx, args.Num1, args.Num2); err2 != nil {
+if retval, err2 = p.handler.Add(p.Ctx(), args.Num1, args.Num2); err2 != nil {
 switch v := err2.(type) {
   case *CalculatorUserException:
 result.UserException = v
