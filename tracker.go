@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -174,7 +175,7 @@ func (t *SimpleTracker) RequestSeqIDFromCtx(ctx context.Context) (string, string
 		seqID = "1"
 	}
 
-	return reqID, seqID
+	return reqID, fmt.Sprintf("%v.1", seqID)
 }
 
 func (t *SimpleTracker) TryReadRequestHeader(iprot thrift.TProtocol) (context.Context, error) {
